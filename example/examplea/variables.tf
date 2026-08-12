@@ -27,4 +27,21 @@ variable "perimeters" {
     dry_run             = optional(bool, false)
   }))
   description = "Perimeter definitions."
+
+  validation {
+    condition     = length(var.perimeters) > 0
+    error_message = "perimeters must not be empty."
+  }
+  validation {
+    condition = alltrue([
+      for k, v in var.perimeters : length(v.project_numbers) > 0
+    ])
+    error_message = "Each perimeter must specify at least one project_numbers entry."
+  }
+  validation {
+    condition = alltrue([
+      for k, v in var.perimeters : length(v.restricted_services) > 0
+    ])
+    error_message = "Each perimeter must specify at least one restricted_services entry."
+  }
 }

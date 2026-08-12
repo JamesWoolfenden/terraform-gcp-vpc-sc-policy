@@ -1,0 +1,22 @@
+id: HLD_GCP_513
+name: GCP service perimeters must restrict at least one service
+principle: network-security
+severity: MEDIUM
+rationale: |
+  A google_access_context_manager_service_perimeter with an empty
+  restricted_services list in both its dry-run spec and its enforced
+  status subjects zero GCP APIs to perimeter controls. It is a phantom
+  control that appears configured in Terraform state and the console
+  while restricting nothing, identical in effect to having no perimeter
+  at all.
+remediation: |
+  Set spec.restricted_services (dry-run) or status.restricted_services
+  (enforced) to a non-empty list of service endpoints, e.g.
+  restricted_services = ["storage.googleapis.com"].
+resources:
+  google_access_context_manager_service_perimeter:
+    any:
+      - path: spec.restricted_services
+        not_empty: true
+      - path: status.restricted_services
+        not_empty: true

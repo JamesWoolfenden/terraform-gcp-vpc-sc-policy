@@ -48,4 +48,16 @@ variable "perimeters" {
     ])
     error_message = "Each allowed_identity must start with 'serviceAccount:', 'user:', or 'group:'."
   }
+  validation {
+    condition = alltrue([
+      for k, v in var.perimeters : length(v.project_numbers) > 0
+    ])
+    error_message = "Each perimeter must specify at least one project_numbers entry."
+  }
+  validation {
+    condition = alltrue([
+      for k, v in var.perimeters : length(v.restricted_services) > 0
+    ])
+    error_message = "Each perimeter must specify at least one restricted_services entry."
+  }
 }

@@ -1,0 +1,57 @@
+{
+  "scan_date": "2026-08-12T09:00:00Z",
+  "scan_path": ".",
+  "findings": [
+    {
+      "id": "HOLDEN_BP_001",
+      "status": "fixed",
+      "first_seen": "2026-08-12",
+      "last_seen": "2026-08-12",
+      "principle": "maintainability",
+      "severity": "LOW",
+      "confidence": "high",
+      "title": "Service perimeter has no prevent_destroy lifecycle guard, unlike its sibling access policy",
+      "file": "google_access_context_manager_access_level.tf",
+      "line": 35,
+      "resource": "google_access_context_manager_service_perimeter.default",
+      "explanation": "google_access_context_manager_access_policy.default (lines 1-7 of the same file) has lifecycle { prevent_destroy = true } — the org's access policy is treated as too critical to destroy accidentally. The service perimeters, which are the actual enforcement boundary this whole module exists to manage, have no equivalent guard. A bad plan (e.g. a perimeter key renamed or removed from var.perimeters, or a for_each source that resolves differently than expected) would let Terraform silently destroy an active, enforcing perimeter with no safety net, immediately removing protection from every project it scoped.",
+      "remediation": "Add the same lifecycle block already used on the access policy:\n\n  lifecycle {\n    prevent_destroy = true\n  }",
+      "fixable": true,
+      "fix": "  lifecycle {\n    prevent_destroy = true\n  }\n}"
+    },
+    {
+      "id": "HOLDEN_BP_002",
+      "status": "fixed",
+      "first_seen": "2026-08-12",
+      "last_seen": "2026-08-12",
+      "principle": "maintainability",
+      "severity": "INFO",
+      "confidence": "high",
+      "title": "All four of the module's resources live in a file named after only one of them, while main.tf is empty",
+      "file": "google_access_context_manager_access_level.tf",
+      "line": 1,
+      "resource": "google_access_context_manager_access_policy.default",
+      "explanation": "main.tf exists but is 0 bytes; google_access_context_manager_access_level.tf holds the access policy, both access levels, AND the service perimeter — a filename promising only access levels. This is the standard main.tf/variables.tf/outputs.tf module layout with the primary resources parked under a mismatched filename, which makes the module harder to navigate for a new contributor scanning by filename. NOTE: the original remediation below (move into main.tf) was wrong — this project's own holden policy HLD_TF_024 flags resources placed directly in main.tf as an anti-pattern in favor of descriptively named files. Fixed instead by splitting into google_access_context_manager_access_policy.tf, google_access_context_manager_access_level.tf (now correctly holding only the two access_level resources), and google_access_context_manager_service_perimeter.tf, leaving main.tf empty as it already was.",
+      "remediation": "Split the four resource blocks into files matching their own names instead of consolidating into main.tf.",
+      "fixable": true
+    },
+    {
+      "id": "HOLDEN_BP_003",
+      "status": "fixed",
+      "first_seen": "2026-08-12",
+      "last_seen": "2026-08-12",
+      "principle": "maintainability",
+      "severity": "INFO",
+      "confidence": "high",
+      "title": "example/examplea's local perimeters variable validation has drifted from the module's own",
+      "file": "example/examplea/variables.tf",
+      "line": 21,
+      "resource": "var.perimeters",
+      "explanation": "The module's variables.tf now has five validation blocks on perimeters (non-empty map, project_numbers prefix format, allowed_identities prefix format, project_numbers non-empty, restricted_services non-empty). example/examplea/variables.tf independently redeclares the same variable but only carries the map-non-empty check — it's missing the project_numbers/restricted_services non-empty validations entirely. This isn't a functional gap (the module's own validation still runs on the value once passed through and enforces it either way), but it's a duplicated declaration that will keep drifting every time one side changes without the other, and anyone copying example/examplea as a starting template inherits the weaker, stale version.",
+      "remediation": "Add the same two validation blocks from the module's variables.tf to example/examplea/variables.tf's perimeters variable:\n\n  validation {\n    condition = alltrue([\n      for k, v in var.perimeters : length(v.project_numbers) > 0\n    ])\n    error_message = \"Each perimeter must specify at least one project_numbers entry.\"\n  }\n  validation {\n    condition = alltrue([\n      for k, v in var.perimeters : length(v.restricted_services) > 0\n    ])\n    error_message = \"Each perimeter must specify at least one restricted_services entry.\"\n  }",
+      "fixable": true,
+      "fix": "  validation {\n    condition = alltrue([\n      for k, v in var.perimeters : length(v.project_numbers) > 0\n    ])\n    error_message = \"Each perimeter must specify at least one project_numbers entry.\"\n  }\n  validation {\n    condition = alltrue([\n      for k, v in var.perimeters : length(v.restricted_services) > 0\n    ])\n    error_message = \"Each perimeter must specify at least one restricted_services entry.\"\n  }\n}"
+    }
+  ],
+  "suggested_policies": []
+}

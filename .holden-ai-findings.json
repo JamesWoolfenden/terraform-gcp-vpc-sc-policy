@@ -1,0 +1,57 @@
+{
+  "scan_date": "2026-08-12T08:30:00Z",
+  "scan_path": ".",
+  "findings": [
+    {
+      "id": "HOLDEN_AI_001",
+      "status": "open",
+      "first_seen": "2026-08-12",
+      "last_seen": "2026-08-12",
+      "unresolved_since": "2026-08-12",
+      "suppression_reason": null,
+      "principle": "network-security",
+      "severity": "HIGH",
+      "confidence": "medium",
+      "title": "IP-based and identity-based access levels attached to the same perimeter are OR'd, not AND'd",
+      "file": "google_access_context_manager_access_level.tf",
+      "line": 49,
+      "resource": "google_access_context_manager_service_perimeter.default",
+      "related_resources": [
+        "google_access_context_manager_access_level.ip",
+        "google_access_context_manager_access_level.identities"
+      ],
+      "explanation": "When a perimeter entry sets both allowed_ip_ranges and allowed_identities (e.g. the ml_workbench example in examplea.auto.tfvars), the concat() at lines 49-52/61-64 attaches TWO separate access levels to access_levels: one whose basic.conditions only checks ip_subnetworks, and one whose basic.conditions only checks members. GCP evaluates a perimeter's access_levels list as alternatives — satisfying any one listed access level exempts the request from the perimeter. So a request from the trusted IP range bypasses the perimeter regardless of identity, and separately the named service account bypasses the perimeter from any network origin. This composition reads like defense-in-depth (\"this IP range AND this service account\") but actually grants two independent, broader bypass paths than intended. A single-resource rules engine cannot see this: it would need to know that two access levels are both referenced by the same perimeter and that GCP's access_levels list uses OR semantics across entries — that's a three-resource compositional fact, not an attribute check on any one resource.",
+      "remediation": "If AND semantics are actually intended (trusted network AND specific identity), combine both conditions into a single basic access level's one conditions{} block instead of two separate access levels — conditions within one access level's basic block are ANDed by default. If OR semantics are intentional (trusted network OR trusted identity, as independent bypass paths), keep the current structure but document that intent explicitly, since it's not obvious from the variable names allowed_ip_ranges/allowed_identities alone. Verify the actual evaluation behavior against a real perimeter with Access Context Manager's troubleshooter before relying on this in production.",
+      "fixable": false
+    },
+    {
+      "id": "HOLDEN_AI_002",
+      "status": "fixed",
+      "first_seen": "2026-08-12",
+      "last_seen": "2026-08-12",
+      "suppression_reason": null,
+      "principle": "network-security",
+      "severity": "HIGH",
+      "confidence": "high",
+      "title": "perimeters variable has no non-empty validation on project_numbers or restricted_services",
+      "file": "variables.tf",
+      "line": 21,
+      "resource": "var.perimeters",
+      "related_resources": [
+        "google_access_context_manager_service_perimeter.default"
+      ],
+      "explanation": "The perimeters variable validates that each project_numbers entry starts with 'projects/' (lines 36-41) and that each allowed_identities entry has a valid prefix (lines 44-49), but never checks that project_numbers or restricted_services is non-empty. A caller can pass project_numbers = [] or restricted_services = [] and terraform apply succeeds: the resulting service perimeter is created, appears enforced/configured, but protects zero projects or restricts zero APIs — a phantom control. HLD_GCP_512 (\"GCP service perimeters must scope to at least one resource\") is designed to catch exactly the project_numbers case, but it evaluates spec.resources/status.resources on the rendered google_access_context_manager_service_perimeter resource, which here is each.value.project_numbers — an unresolved for_each expression the deterministic engine cannot statically evaluate, so it silently passes regardless of the actual tfvars used. No equivalent policy exists for restricted_services at all (confirmed empty in coverage_by_type and via grep of the policy set). Because this module's whole purpose is defining the protected boundary, catching this at the variable-validation layer (which resolves before any per-perimeter for_each expansion) is the only place a check can reliably fire.",
+      "remediation": "Add two validation blocks to the perimeters variable in variables.tf, matching the existing pattern:\n\n  validation {\n    condition = alltrue([\n      for k, v in var.perimeters : length(v.project_numbers) > 0\n    ])\n    error_message = \"Each perimeter must specify at least one project_numbers entry.\"\n  }\n  validation {\n    condition = alltrue([\n      for k, v in var.perimeters : length(v.restricted_services) > 0\n    ])\n    error_message = \"Each perimeter must specify at least one restricted_services entry.\"\n  }",
+      "supersedes": "HLD_GCP_512",
+      "fixable": true,
+      "fix": "  validation {\n    condition = alltrue([\n      for k, v in var.perimeters : length(v.project_numbers) > 0\n    ])\n    error_message = \"Each perimeter must specify at least one project_numbers entry.\"\n  }\n  validation {\n    condition = alltrue([\n      for k, v in var.perimeters : length(v.restricted_services) > 0\n    ])\n    error_message = \"Each perimeter must specify at least one restricted_services entry.\"\n  }\n}"
+    }
+  ],
+  "suggested_policies": [
+    {
+      "rationale": "google_access_context_manager_service_perimeter resources are only covered by HLD_GCP_512 for the resources/project_numbers attribute (spec.resources / status.resources not_empty). No existing policy checks restricted_services, which is the other required scoping field on the same resource and is just as capable of silently producing a no-op perimeter when left empty. Confirmed via coverage_by_type (only HLD_GCP_512 listed for this resource type) and a repo-wide grep for 'restricted_services' across E:\\Code\\holden\\policies, which returned no matches. Same DSL shape as HLD_GCP_512, just a different attribute path.",
+      "yaml": "id: HLD_PROPOSED_001\nname: GCP service perimeters must restrict at least one service\nprinciple: network-security\nseverity: MEDIUM\nrationale: |\n  A google_access_context_manager_service_perimeter with an empty\n  restricted_services list in both its dry-run spec and its enforced\n  status subjects zero GCP APIs to perimeter controls. It is a phantom\n  control that appears configured in Terraform state and the console\n  while restricting nothing, identical in effect to having no perimeter\n  at all.\nremediation: |\n  Set spec.restricted_services (dry-run) or status.restricted_services\n  (enforced) to a non-empty list of service endpoints, e.g.\n  restricted_services = [\"storage.googleapis.com\"].\nresources:\n  google_access_context_manager_service_perimeter:\n    any:\n      - path: spec.restricted_services\n        not_empty: true\n      - path: status.restricted_services\n        not_empty: true\n"
+    }
+  ],
+  "suggested_suppressions": []
+}
