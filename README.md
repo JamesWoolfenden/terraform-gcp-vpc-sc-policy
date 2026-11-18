@@ -42,16 +42,13 @@ module "vpc_sc_policy" {
 <!-- BEGINNING OF PRE-COMMIT-TERRAFORM DOCS HOOK -->
 ## Requirements
 
-| Name | Version |
-|------|---------|
-| <a name="requirement_terraform"></a> [terraform](#requirement\_terraform) | >= 1.9.0 |
-| <a name="requirement_google"></a> [google](#requirement\_google) | >= 6.0.0, < 7.0.0 |
+No requirements.
 
 ## Providers
 
 | Name | Version |
-|------|---------|
-| <a name="provider_google"></a> [google](#provider\_google) | >= 6.0.0, < 7.0.0 |
+| ---- | ------- |
+| <a name="provider_google"></a> [google](#provider\_google) | n/a |
 
 ## Modules
 
@@ -60,34 +57,24 @@ No modules.
 ## Resources
 
 | Name | Type |
-|------|------|
-| [google_access_context_manager_access_policy.default](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/access_context_manager_access_policy) | resource |
-| [google_access_context_manager_access_level.ip](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/access_context_manager_access_level) | resource |
+| ---- | ---- |
 | [google_access_context_manager_access_level.identities](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/access_context_manager_access_level) | resource |
+| [google_access_context_manager_access_level.ip](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/access_context_manager_access_level) | resource |
+| [google_access_context_manager_access_policy.default](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/access_context_manager_access_policy) | resource |
 | [google_access_context_manager_service_perimeter.default](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/access_context_manager_service_perimeter) | resource |
 
 ## Inputs
 
 | Name | Description | Type | Default | Required |
-|------|-------------|------|---------|:--------:|
+| ---- | ----------- | ---- | ------- | :------: |
 | <a name="input_org_id"></a> [org\_id](#input\_org\_id) | GCP organization ID (numeric). | `string` | n/a | yes |
+| <a name="input_perimeters"></a> [perimeters](#input\_perimeters) | Perimeters to manage. Each entry controls which projects and services are protected, and who can access them. | <pre>map(object({<br/>    project_numbers     = list(string)<br/>    restricted_services = list(string)<br/>    allowed_ip_ranges   = optional(list(string), [])<br/>    allowed_identities  = optional(list(string), [])<br/>    dry_run             = optional(bool, false)<br/>  }))</pre> | n/a | yes |
 | <a name="input_policy_title"></a> [policy\_title](#input\_policy\_title) | Display title for the access policy. | `string` | n/a | yes |
-| <a name="input_perimeters"></a> [perimeters](#input\_perimeters) | Perimeters to manage. Each entry controls which projects and services are protected, and who can access them. | `map(object({...}))` | n/a | yes |
-
-### perimeters object attributes
-
-| Attribute | Description | Type | Default | Required |
-|-----------|-------------|------|---------|:--------:|
-| project\_numbers | Project numbers to protect (e.g. `['projects/123456789']`). | `list(string)` | n/a | yes |
-| restricted\_services | GCP API endpoints to restrict. | `list(string)` | n/a | yes |
-| allowed\_ip\_ranges | IP ranges always allowed through. | `list(string)` | `[]` | no |
-| allowed\_identities | Service accounts or users always allowed through. | `list(string)` | `[]` | no |
-| dry\_run | When true, perimeter is in dry-run mode and never enforced. | `bool` | `false` | no |
 
 ## Outputs
 
 | Name | Description |
-|------|-------------|
+| ---- | ----------- |
 | <a name="output_access_policy_name"></a> [access\_policy\_name](#output\_access\_policy\_name) | The access policy name — pass to terraform-gcp-vpc-sc-perimeter for team-level additions. |
 | <a name="output_perimeters"></a> [perimeters](#output\_perimeters) | Map of perimeter name to perimeter resource. |
 <!-- END OF PRE-COMMIT-TERRAFORM DOCS HOOK -->
@@ -98,6 +85,7 @@ No modules.
 The Terraform resource required is:
 
 ```golang
+# apply role
 resource "google_project_iam_custom_role" "terraform_pike" {
   project     = "pike-477416"
   role_id     = "terraform_pike"
@@ -111,13 +99,23 @@ resource "google_project_iam_custom_role" "terraform_pike" {
     "accesscontextmanager.accessPolicies.create",
     "accesscontextmanager.accessPolicies.delete",
     "accesscontextmanager.accessPolicies.get",
-    "accesscontextmanager.accessPolicies.update",
-    "accesscontextmanager.servicePerimeters.create",
-    "accesscontextmanager.servicePerimeters.delete",
-    "accesscontextmanager.servicePerimeters.get",
-    "accesscontextmanager.servicePerimeters.update",
+    "accesscontextmanager.accessPolicies.update"
   ]
 }
+
+# plan role
+resource "google_project_iam_custom_role" "terraform_pike_plan" {
+  project     = "pike-477416"
+  role_id     = "terraform_pike_plan"
+  title       = "terraform_pike_plan"
+  description = "A user with least privileges"
+  permissions = [
+    "accesscontextmanager.accessLevels.get",
+    "accesscontextmanager.accessPolicies.get"
+  ]
+}
+
+
 ```
 <!-- END OF PRE-COMMIT-PIKE DOCS HOOK -->
 
